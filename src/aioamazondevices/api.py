@@ -6,6 +6,7 @@ import hashlib
 import mimetypes
 import secrets
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -1424,7 +1425,7 @@ class AmazonEchoApi:
             )
         return dnd_status
 
-    async def get_avs_directives(self) -> None:
+    async def get_avs_directives(self, callback: Callable) -> None:
         """Get AVS directives."""
         if not self._login_stored_data:
             _LOGGER.warning("No login data available, cannot get directives")
@@ -1477,6 +1478,13 @@ class AmazonEchoApi:
                     if chunk_type in AmazonPushMessage.__members__.values():
                         _LOGGER.debug(
                             "Detected push type <%s> on device <%s>",
+                            chunk_type,
+                            chunk_device,
+                        )
+                        await callback(chunk_device, chunk_json)
+                    else:
+                        _LOGGER.debug(
+                            "Detected unknown push type <%s> on device <%s>",
                             chunk_type,
                             chunk_device,
                         )

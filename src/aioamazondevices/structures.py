@@ -74,6 +74,9 @@ class AmazonPushMessage(StrEnum):
     BluetoothStatus = "PUSH_BLUETOOTH_STATE_CHANGE"
     MicrophoneStatus = "PUSH_MICROPHONE_STATE"
 
+    # Notifications
+    NotificationChange = "PUSH_NOTIFICATION_CHANGE"
+
     # Media
     AudioPlayerState = "PUSH_AUDIO_PLAYER_STATE"
     EqualizerStateChange = "PUSH_EQUALIZER_STATE_CHANGE"

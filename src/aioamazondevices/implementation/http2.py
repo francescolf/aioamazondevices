@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+from collections.abc import Callable, Coroutine
 from http import HTTPMethod, HTTPStatus
 from typing import Any, cast
 
@@ -32,16 +33,20 @@ class AmazonHTTP2Client:
         self,
         http_wrapper: AmazonHttpWrapper,
         session_state_data: AmazonSessionStateData,
+        on_push_cb: Callable[[str, dict | None], Coroutine[Any, Any, None]]
+        | None = None,
     ) -> None:
         """Initialize Amazon HTTP2 client class."""
         self._http_wrapper = http_wrapper
         self._login_stored_data = session_state_data.login_stored_data
+        self._on_push_cb = on_push_cb
 
         self._http2_client: httpx.AsyncClient
 
         self.reconnect_delay = HTTP2_RECONNECT_DELAY
         self._task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
+        self._pending_push_tasks: set[asyncio.Task] = set()
 
     async def start_thread(self) -> None:
         """Start the background task."""
@@ -58,6 +63,23 @@ class AmazonHTTP2Client:
             self._task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._task
+
+        if self._pending_push_tasks:
+            for t in list(self._pending_push_tasks):
+                t.cancel()
+            await asyncio.gather(*self._pending_push_tasks, return_exceptions=True)
+            self._pending_push_tasks.clear()
+
+    def set_callback(
+        self,
+        on_push_cb: Callable[[str, dict | None], Coroutine[Any, Any, None]],
+    ) -> None:
+        """Set push callback."""
+        self._on_push_cb = on_push_cb
+
+    async def is_connected(self) -> bool:
+        """Return True if HTTP/2 connection is active."""
+        return hasattr(self, "_http2_client") and not self._http2_client.is_closed
 
     async def _register_device_capabilities(self) -> None:
         """Register device capabilities."""
@@ -129,6 +151,9 @@ class AmazonHTTP2Client:
                         .get("dopplerId", {})
                         .get("deviceSerialNumber")
                     )
+                    payload = updates_node.get("resourceMetadata", {}).get(
+                        "payload", {}
+                    )
 
                     if chunk_type in AmazonPushMessage.__members__.values():
                         _LOGGER.debug(
@@ -136,7 +161,25 @@ class AmazonHTTP2Client:
                             chunk_type,
                             chunk_device,
                         )
-
+                        if (
+                            chunk_type == AmazonPushMessage.NotificationChange.value
+                            and payload.get("notificationVersion", 2) % 2 == 0
+                        ):
+                            # PUSH_NOTIFICATION_CHANGE is always fired twice, so
+                            # we ignore the even versions and only process the odd ones
+                            continue
+                        if self._on_push_cb:
+                            task = asyncio.create_task(
+                                self._on_push_cb(chunk_type, payload)
+                            )
+                            self._pending_push_tasks.add(task)
+                            task.add_done_callback(self._pending_push_tasks.discard)
+                    else:
+                        _LOGGER.warning(
+                            "Unknown HTTP2 push message received from device %s: %s",
+                            chunk_device,
+                            chunk_type,
+                        )
             _LOGGER.debug("AVS Directives stream closed")
         except httpx.RemoteProtocolError as excp:
             _LOGGER.warning("Disconnect detected: %s", excp)

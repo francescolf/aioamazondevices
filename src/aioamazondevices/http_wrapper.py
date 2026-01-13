@@ -298,7 +298,7 @@ class AmazonHttpWrapper:
         )
 
         headers = DEFAULT_HEADERS.copy()
-        headers.update({"User-Agent": REQUEST_AGENT["Amazon"]})
+        headers.update({"User-Agent": REQUEST_AGENT["Browser"]})
         headers.update({"Accept-Language": self._session_state_data.language})
         headers.update({"x-amzn-client": "github.com/chemelli74/aioamazondevices"})
         headers.update({"x-amzn-build-version": __version__})
@@ -382,6 +382,7 @@ class AmazonHttpWrapper:
             if not await self._ignore_ap_signin_error(
                 resp
             ) and not await self._ignore_capabilities_error(resp):
+                _LOGGER.debug("Error response content: %s", await resp.text())
                 raise CannotRetrieveData(
                     f"Request failed: {await self.http_phrase_error(resp.status)}"
                 )

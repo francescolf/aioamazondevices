@@ -4,6 +4,7 @@ from .http import AMAZON_DEVICE_TYPE
 
 SPEAKER_GROUP_FAMILY = "WHA"
 SPEAKER_GROUP_MODEL = "Speaker Group"
+AQM_DEVICE_TYPE = "AEZME1X38KDRA"
 
 DEVICE_TO_IGNORE: list[str] = [
     AMAZON_DEVICE_TYPE,  # Alexa App for iOS
@@ -425,5 +426,9 @@ DEVICE_TYPE_TO_MODEL: dict[str, dict[str, str | None]] = {
         "manufacturer": "Netgear",
         "model": "Orbi Voice (RBS40V)",
         "hw_version": None,
+    },
+    AQM_DEVICE_TYPE: {
+        "model": "Air Quality Monitor",
+        "hw_version": "Gen1",
     },
 }

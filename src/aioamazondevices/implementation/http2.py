@@ -33,13 +33,12 @@ class AmazonHTTP2Client:
         self,
         http_wrapper: AmazonHttpWrapper,
         session_state_data: AmazonSessionStateData,
-        on_push_cb: Callable[[str, dict | None], Coroutine[Any, Any, None]]
-        | None = None,
+        on_push: Callable[[str, dict | None], Coroutine[Any, Any, None]] | None = None,
     ) -> None:
         """Initialize Amazon HTTP2 client class."""
         self._http_wrapper = http_wrapper
         self._login_stored_data = session_state_data.login_stored_data
-        self._on_push_cb = on_push_cb
+        self._on_push_cb = on_push
 
         self._http2_client: httpx.AsyncClient
 
@@ -48,13 +47,13 @@ class AmazonHTTP2Client:
         self._stop_event = asyncio.Event()
         self._pending_push_tasks: set[asyncio.Task] = set()
 
-    async def start_thread(self) -> None:
+    async def start_thread(self, client: httpx.AsyncClient | None) -> None:
         """Start the background task."""
         if self._task and not self._task.done():
             return
 
         self._stop_event.clear()
-        self._task = asyncio.create_task(self._get_avs_directives())
+        self._task = asyncio.create_task(self._get_avs_directives(client))
 
     async def stop_thread(self) -> None:
         """Stop the background task gracefully."""
@@ -101,7 +100,7 @@ class AmazonHTTP2Client:
         self._login_stored_data[DEVICE_CAPABILITIES_REGISTERED] = True
         _LOGGER.debug("Device capabilities registered successfully")
 
-    async def _get_avs_directives(self) -> None:
+    async def _get_avs_directives(self, client: httpx.AsyncClient | None) -> None:
         """Get AVS directives."""
         if not self._login_stored_data:
             _LOGGER.warning("No login data available, cannot get directives")
@@ -116,7 +115,7 @@ class AmazonHTTP2Client:
             _LOGGER.debug("Device capabilities not set, registering now.")
             await self._register_device_capabilities()
 
-        await self._http2_init_client()
+        await self._http2_init_client(client)
 
         try:
             _LOGGER.debug("Starting AVS Directives stream")
@@ -161,12 +160,12 @@ class AmazonHTTP2Client:
                             chunk_type,
                             chunk_device,
                         )
+                        # Skip double NotificationChange pushes
+                        # (we assume even version numbers are duplicates)
                         if (
                             chunk_type == AmazonPushMessage.NotificationChange.value
                             and payload.get("notificationVersion", 2) % 2 == 0
                         ):
-                            # PUSH_NOTIFICATION_CHANGE is always fired twice, so
-                            # we ignore the even versions and only process the odd ones
                             continue
                         if self._on_push_cb:
                             task = asyncio.create_task(
@@ -217,13 +216,40 @@ class AmazonHTTP2Client:
 
         return cast("dict[str,Any]", json_chunk)
 
-    async def _http2_init_client(self) -> None:
+    async def _http2_init_client(self, client: httpx.AsyncClient | None) -> None:
         """Create HTTP2 client session."""
-        _LOGGER.debug("Initialized HTTP2 client")
-        self._http2_client = httpx.AsyncClient(
-            http2=True,
-            timeout=httpx.Timeout(None),
-        )
+        # If a client is provided and it already has HTTP/2 enabled, reuse it.
+        # Otherwise create a dedicated HTTP/2 client, reusing the SSL context
+        # from the provided client when possible.
+        if client is not None:
+            transport = getattr(client, "_transport", None)
+            config = getattr(transport, "_config", None)
+            http2_enabled = bool(getattr(config, "http2", False))
+            if http2_enabled:
+                self._http2_client = client
+                _LOGGER.debug("Initialized HTTP2 client with provided client")
+                return
+
+            ssl_context = getattr(transport, "_ssl_context", None)
+            if ssl_context is None:
+                pool = getattr(transport, "_pool", None)
+                ssl_context = getattr(pool, "_ssl_context", None)
+        else:
+            ssl_context = None
+
+        if ssl_context is None:
+            self._http2_client = httpx.AsyncClient(
+                http2=True,
+                timeout=httpx.Timeout(None),
+            )
+            _LOGGER.debug("Initialized HTTP2 client with default httpx instance")
+        else:
+            self._http2_client = httpx.AsyncClient(
+                http2=True,
+                timeout=httpx.Timeout(None),
+                verify=ssl_context,
+            )
+            _LOGGER.debug("Initialized HTTP2 client with copied SSL context")
 
     async def _http2_site(self) -> str:
         """Get HTTP2 site."""

@@ -6,7 +6,6 @@ from http import HTTPMethod
 from typing import Any
 
 from aiohttp import ClientSession
-from httpx import AsyncClient
 
 from . import __version__
 from .const.devices import (
@@ -169,9 +168,9 @@ class AmazonEchoApi:
 
         return devices_sensors
 
-    async def start_http2_thread(self, client: AsyncClient) -> None:
+    async def start_http2_thread(self) -> None:
         """Start HTTP2 background thread."""
-        await self._http2_client.start_thread(client)
+        await self._http2_client.start_thread()
 
     def register_http2_push_callback(
         self, callback: Callable[[str, dict | None], Coroutine[Any, Any, None]]

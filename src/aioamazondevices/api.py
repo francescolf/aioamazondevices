@@ -395,6 +395,7 @@ class AmazonEchoApi:
         devices_sensors = await self._get_sensors_states()
         dnd_sensors = await self._dnd_handler.get_do_not_disturb_status()
         if not await self._http2_client.is_connected():
+            _LOGGER.debug("HTTP2 client not connected, updating notification sensors")
             await self.update_notification_sensors()
         for device in self._final_devices.values():
             # Update sensors

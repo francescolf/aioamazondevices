@@ -242,7 +242,7 @@ class AmazonHTTP2Client:
             timeout=httpx.Timeout(None),
             verify=ssl_context,
         )
-        _LOGGER.debug("Initialized HTTP2 client with provided SSL context")
+        _LOGGER.debug("Initialized HTTP2 client")
 
     async def _http2_site(self) -> str:
         """Get HTTP2 site."""

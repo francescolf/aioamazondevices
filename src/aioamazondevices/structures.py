@@ -86,5 +86,8 @@ class AmazonPushMessage(StrEnum):
     MediaProgressChange = "PUSH_MEDIA_PROGRESS_CHANGE"
     VolumeChange = "PUSH_VOLUME_CHANGE"
 
+    MediaSessionsUpdated = "NotifyMediaSessionsUpdated"
+    NowPlayingUpdated = "NotifyNowPlayingUpdated"
+
     # Lists
     ItemChange = "PUSH_LIST_ITEM_CHANGE"

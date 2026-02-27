@@ -191,7 +191,7 @@ class AmazonHTTP2Client:
                             )
                 _LOGGER.debug("AVS Directives stream closed")
             except httpx.RemoteProtocolError as excp:
-                _LOGGER.warning("Disconnect detected: %s", excp)
+                _LOGGER.debug("HTTP2 disconnection detected: %s", excp)
             except httpx.HTTPError as excp:
                 _LOGGER.warning("HTTP2 error detected: %s", excp)
 

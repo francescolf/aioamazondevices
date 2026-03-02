@@ -18,7 +18,6 @@ from anyio import Path
 from colorlog import ColoredFormatter
 
 from aioamazondevices.api import AmazonEchoApi
-from aioamazondevices.const.devices import AQM_DEVICE_TYPE
 from aioamazondevices.exceptions import (
     AmazonError,
     CannotAuthenticate,
@@ -28,6 +27,7 @@ from aioamazondevices.exceptions import (
 from aioamazondevices.structures import AmazonDevice, AmazonMusicSource
 
 SAVE_PATH = "out"
+SAVE_PATH_DATE = datetime.now(UTC).strftime("%Y-%m-%d-%H-%M-%S")
 HTML_EXTENSION = ".html"
 BIN_EXTENSION = ".bin"
 RAW_EXTENSION = ".raw"
@@ -129,6 +129,7 @@ async def save_to_file(
     if not raw_data:
         return
 
+    # Create main output directory and timestamp subdirectory
     output_dir = Path(SAVE_PATH)
     await output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -137,13 +138,11 @@ async def save_to_file(
         or RAW_EXTENSION
     )
 
-    date = datetime.now(UTC).strftime("%Y-%m-%d")
-    base_filename = date + "-"
     if url.startswith("http"):
         url_split = url.split("/")
-        base_filename += f"{url_split[3]}-{url_split[4].split('?')[0]}"
+        base_filename = f"{url_split[3]}-{url_split[4].split('?')[0]}"
     else:
-        base_filename += url
+        base_filename = url
     fullpath = Path(output_dir, base_filename + extension)
 
     data: str
@@ -260,7 +259,21 @@ async def main() -> None:
         sys.exit(3)
 
     print("Devices count  :", len(devices))
-    print("Devices details:", devices)
+    print("-" * 20)
+    print("Devices full details:", devices)
+    print("-" * 20)
+    print("Devices summary:")
+    dev_index = 1
+    for device in devices.values():
+        print(f"{dev_index}. Device {device.account_name}:")
+        print(f"   Online: {device.online}")
+        print(f"   Device manufacturer: {device.manufacturer}")
+        print(f"   Device model: {device.model}")
+        print(f"   Device hardware version: {device.hardware_version}")
+        print(f"   Device software version: {device.software_version}")
+        print(f"   Device sensors: {len(device.sensors)}")
+        print(f"   Device notifications: {len(device.notifications)}")
+        dev_index += 1
     print("-" * 20)
 
     if not devices:
@@ -269,6 +282,8 @@ async def main() -> None:
         sys.exit(0)
 
     await save_to_file(devices, "output-devices")
+    print("Check above file for full devices details")
+    print("-" * 20)
 
     print("Waiting for CTRL-C...")
     await wait_until_ctrl_c()
@@ -290,24 +305,10 @@ async def main() -> None:
     else:
         device_cluster = device_single
 
-    print("-" * 20)
-    print("All Devices:")
-    for d in devices.values():
-        print(f"  {d.account_name} - Online: {d.online}")
-    print("-" * 20)
-
     print("Selected devices:")
-    print("- single : ", device_single)
-    print("- cluster: ", device_cluster)
-
-    _print_aqm_device_details(devices)
-
-    for sensor in device_single.sensors:
-        print(f"Sensor {device_single.sensors[sensor]}")
-
-    for notification in device_single.notifications:
-        print(f"Notification {device_single.notifications[notification]}")
-
+    print("- single : ", device_single.account_name)
+    print("- cluster: ", device_cluster.account_name)
+    print("-" * 20)
     print("Sending message via 'Alexa.Speak' to:", device_single.account_name)
     await api.call_alexa_speak(device_single, "Test Speak message from new library")
 
@@ -356,22 +357,6 @@ async def main() -> None:
 
     print("Closing session")
     await client_session.close()
-
-
-def _print_aqm_device_details(devices: dict[str, AmazonDevice]) -> None:
-    print("AQM Devices and Sensors:")
-    print("-" * 20)
-    found_aqm = False
-    for device in devices.values():
-        if device.device_type == AQM_DEVICE_TYPE:
-            found_aqm = True
-            print(f"AQM Device: {device.account_name}")
-            for aqm_sensor in device.sensors:
-                print(f"  AQM Sensor {device.sensors[aqm_sensor]}")
-
-    if not found_aqm:
-        print("  No AQM devices found")
-    print("-" * 20)
 
 
 def set_logging() -> None:

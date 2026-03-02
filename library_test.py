@@ -132,6 +132,8 @@ async def save_to_file(
     # Create main output directory and timestamp subdirectory
     output_dir = Path(SAVE_PATH)
     await output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = output_dir.joinpath(SAVE_PATH_DATE)
+    await output_dir.mkdir(parents=True, exist_ok=True)
 
     extension = (
         mimetypes.guess_extension(content_type.split(";", maxsplit=1)[0])

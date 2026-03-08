@@ -24,7 +24,7 @@ dependencies = [
 "anyio",
 "beautifulsoup4",
 "colorlog",
-"httpx",
+"httpx[http2]",
 "langcodes",
 "orjson (>=3.10,<4)",
 "python-dateutil",
